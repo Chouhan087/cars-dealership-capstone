@@ -1,0 +1,2 @@
+Run: cd server && python manage.py runserver
+Paste the REAL terminal output here after starting the server.

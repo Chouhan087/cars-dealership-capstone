@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login - Cars Dealership</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+<nav>
+    <b>Cars Dealership</b>
+    <a href="/">Home</a>
+    <a href="/static/About.html">About Us</a>
+    <a href="/static/Contact.html">Contact Us</a>
+</nav>
+
+<main>
+    <h1>Login</h1>
+    <form id="loginForm">
+        <p>
+            <label for="username">Username</label><br>
+            <input type="text" id="username" value="root" required>
+        </p>
+        <p>
+            <label for="password">Password</label><br>
+            <input type="password" id="password" value="rootpass123" required>
+        </p>
+        <button type="submit">Login</button>
+    </form>
+    <p id="message"></p>
+</main>
+
+<script>
+document.getElementById('loginForm').addEventListener('submit', async function(e) {
+    e.preventDefault();
+
+    const response = await fetch('/api/login/', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            username: document.getElementById('username').value,
+            password: document.getElementById('password').value
+        })
+    });
+
+    const data = await response.json();
+
+    if (response.ok) {
+        localStorage.setItem('loggedInUsername', data.username);
+        window.location.href = '/';
+    } else {
+        document.getElementById('message').textContent = data.error || 'Login failed';
+    }
+});
+</script>
+</body>
+</html>

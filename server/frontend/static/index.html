@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cars Dealership</title>
+    <link rel="stylesheet" href="/static/style.css">
+    <style>
+        body{font-family:Arial,sans-serif;background:#f4f6fb;margin:0;color:#16233d}
+        nav{background:#17285f;color:#fff;padding:14px 24px;display:flex;gap:22px;align-items:center}
+        nav a{color:#fff;text-decoration:none}.brand{font-weight:bold;margin-right:8px}
+        .user{font-weight:bold;margin-left:auto}.wrap{max-width:900px;margin:45px auto;padding:0 20px}
+        .toolbar{background:#fff;padding:18px;border-radius:10px;margin:20px 0;box-shadow:0 2px 10px #0001}
+        select, input, textarea{padding:10px;width:100%;box-sizing:border-box;margin:7px 0 14px}
+        button{padding:10px 18px;border:0;border-radius:5px;background:#173b8f;color:white;cursor:pointer}
+        .card{background:#fff;padding:22px;margin:16px 0;border-radius:10px;box-shadow:0 2px 10px #0001}
+        .links a{margin-right:12px}.review{border-top:1px solid #ddd;padding:12px 0}
+        .hidden{display:none}.back{margin-bottom:15px;display:inline-block}
+    </style>
+</head>
+<body>
+<nav>
+    <span class="brand">Cars Dealership</span>
+    <a href="/">Home</a>
+    <a href="/about/">About Us</a>
+    <a href="/contact/">Contact Us</a>
+    <span id="authArea"></span>
+</nav>
+
+<div class="wrap">
+    <h1 id="pageTitle">Cars Dealership</h1>
+    <p id="subtitle">Find trusted dealerships across the United States.</p>
+
+    <div id="filterBox" class="toolbar">
+        <label><strong>Filter Dealers by State</strong></label>
+        <select id="stateSelect">
+            <option value="">All States</option>
+            <option value="Kansas">Kansas</option>
+            <option value="Colorado">Colorado</option>
+        </select>
+        <button onclick="filterState()">Filter</button>
+    </div>
+
+    <div id="dealerList"></div>
+
+    <div id="detailView" class="hidden"></div>
+
+    <div id="reviewView" class="hidden">
+        <a class="back" id="reviewBack" href="#">← Back to Dealer</a>
+        <h2>Post Review</h2>
+        <div class="card">
+            <p id="reviewDealerName"></p>
+            <label>Review</label>
+            <textarea id="reviewText" rows="5" placeholder="Enter your review"></textarea>
+            <button onclick="submitReview()">Submit Review</button>
+            <p id="reviewMessage"></p>
+        </div>
+    </div>
+</div>
+
+<script>
+let currentDealerId = null;
+
+async function getJSON(url, options={}) {
+    const r = await fetch(url, options);
+    const data = await r.json();
+    if (!r.ok) throw new Error(data.error || "Request failed");
+    return data;
+}
+
+function authUI() {
+    const area = document.getElementById("authArea");
+    const logged = localStorage.getItem("loggedInUsername");
+    area.innerHTML = logged
+        ? `<span class="user">Logged in as: ${logged} | <a href="#" onclick="logout();return false;">Logout</a></span>`
+        : `<a href="/static/login.html">Login</a>`;
+}
+
+async function logout() {
+    await fetch("/api/logout/", {method:"POST"});
+    localStorage.removeItem("loggedInUsername");
+    location.href="/";
+}
+
+function filterState() {
+    const state = document.getElementById("stateSelect").value;
+    if (state) location.href = "/dealers/state/" + encodeURIComponent(state) + "/";
+    else location.href = "/";
+}
+
+function dealerCard(d) {
+    return `<div class="card">
+        <h2>${d.name}</h2>
+        <p>${d.city}, ${d.state}</p>
+        <p>${d.address}</p>
+        <div class="links">
+            <a href="/dealers/${d.id}/">View Dealer</a> |
+            <a href="/dealers/${d.id}/review/">Review Dealer</a>
+        </div>
+    </div>`;
+}
+
+async function loadDealers(state="") {
+    document.getElementById("detailView").classList.add("hidden");
+    document.getElementById("reviewView").classList.add("hidden");
+    document.getElementById("dealerList").classList.remove("hidden");
+    document.getElementById("filterBox").classList.remove("hidden");
+
+    const endpoint = state ? `/api/dealers/state/${encodeURIComponent(state)}/` : "/api/dealers/";
+    const data = await getJSON(endpoint);
+    document.getElementById("dealerList").innerHTML =
+        data.dealers.map(dealerCard).join("");
+    if (state) {
+        document.getElementById("pageTitle").textContent = `Dealers in ${state}`;
+        document.getElementById("subtitle").textContent =
+            `Showing dealers filtered by State: ${state}`;
+        document.getElementById("stateSelect").value = state;
+    } else {
+        document.getElementById("pageTitle").textContent = "Cars Dealership";
+        document.getElementById("subtitle").textContent =
+            "Find trusted dealerships across the United States.";
+    }
+}
+
+async function loadDetail(id) {
+    document.getElementById("filterBox").classList.add("hidden");
+    document.getElementById("dealerList").classList.add("hidden");
+    document.getElementById("reviewView").classList.add("hidden");
+    const box = document.getElementById("detailView");
+    box.classList.remove("hidden");
+
+    const dealer = await getJSON(`/api/dealers/${id}/`);
+    const reviews = await getJSON(`/api/dealers/${id}/reviews/`);
+    let html = `<a class="back" href="/">← Back to Dealers</a>
+        <h1>${dealer.name}</h1>
+        <div class="card">
+        <p><strong>City:</strong> ${dealer.city}</p>
+        <p><strong>State:</strong> ${dealer.state}</p>
+        <p><strong>Address:</strong> ${dealer.address}</p>
+        <p><strong>Phone:</strong> ${dealer.phone}</p>
+        <a href="/dealers/${id}/review/">Review Dealer</a>
+        </div><h2>Reviews</h2>`;
+
+    if (!reviews.reviews.length) html += `<div class="card">No reviews yet.</div>`;
+    reviews.reviews.forEach(r => {
+        html += `<div class="card review"><strong>${r.username}</strong>
+                 <p>${r.text}</p><small>Sentiment: ${r.sentiment}</small></div>`;
+    });
+    box.innerHTML = html;
+}
+
+async function showReview(id) {
+    const logged = localStorage.getItem("loggedInUsername");
+    if (!logged) { location.href="/static/login.html"; return; }
+    currentDealerId = id;
+    document.getElementById("dealerList").classList.add("hidden");
+    document.getElementById("filterBox").classList.add("hidden");
+    document.getElementById("detailView").classList.add("hidden");
+    document.getElementById("reviewView").classList.remove("hidden");
+    const d = await getJSON(`/api/dealers/${id}/`);
+    document.getElementById("reviewDealerName").textContent =
+        `Dealer: ${d.name}`;
+    document.getElementById("reviewBack").href = `/dealers/${id}/`;
+}
+
+async function submitReview() {
+    const text = document.getElementById("reviewText").value.trim();
+    if (!text) return;
+    try {
+        await getJSON(`/api/dealers/${currentDealerId}/reviews/create/`, {
+            method:"POST",
+            headers:{"Content-Type":"application/json"},
+            body:JSON.stringify({text})
+        });
+        location.href = `/dealers/${currentDealerId}/`;
+    } catch(e) {
+        document.getElementById("reviewMessage").textContent = e.message;
+    }
+}
+
+function route() {
+    authUI();
+    const p = location.pathname;
+    let m;
+    if ((m=p.match(/^\/dealers\/state\/([^/]+)\/$/))) return loadDealers(decodeURIComponent(m[1]));
+    if ((m=p.match(/^\/dealers\/(\d+)\/review\/$/))) return showReview(m[1]);
+    if ((m=p.match(/^\/dealers\/(\d+)\/$/))) return loadDetail(m[1]);
+    loadDealers("");
+}
+route();
+</script>
+</body>
+</html>
